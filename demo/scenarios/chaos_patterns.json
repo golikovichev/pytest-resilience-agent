@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "description": "Built-in chaos scenarios shipped with pytest-resilience-agent v0.1. Each entry describes the failure mode, the target layer, and what a passing resilience test must assert.",
+  "scenarios": [
+    {
+      "name": "llm_timeout",
+      "target_layer": "ai_gateway",
+      "failure_mode": "slow_response",
+      "fixture_action": "Inject a 35-second sleep before the gateway response. Default test timeout is 30s, so the call must time out client-side.",
+      "expected_test_assertion": "The agent surfaces a timeout error to the caller rather than hanging or silently returning empty content."
+    },
+    {
+      "name": "llm_5xx",
+      "target_layer": "ai_gateway",
+      "failure_mode": "transient_server_error",
+      "fixture_action": "Return HTTP 502 from the gateway for the configured share of calls (default 100% of the first call).",
+      "expected_test_assertion": "The gateway's own fallback chain takes over and the agent still gets a non-empty reply; chaos.events records the 502 that was injected."
+    },
+    {
+      "name": "rate_limit",
+      "target_layer": "ai_gateway",
+      "failure_mode": "throttled",
+      "fixture_action": "Return HTTP 429 with Retry-After=2 on the first call.",
+      "expected_test_assertion": "The agent either retries after the Retry-After interval and succeeds, or surfaces a clear rate-limit error. Either path is fine; silently returning a stale or empty reply is not."
+    },
+    {
+      "name": "mcp_error",
+      "target_layer": "lark_mcp",
+      "failure_mode": "tool_error",
+      "fixture_action": "Make the next Lark MCP tool call raise a JSON-RPC error response.",
+      "expected_test_assertion": "The agent reports the failed tool в its final reply rather than acting as if the tool succeeded."
+    },
+    {
+      "name": "partial_outage",
+      "target_layer": "ai_gateway",
+      "failure_mode": "first_call_fails_retry_succeeds",
+      "fixture_action": "Return HTTP 503 on the first call only; subsequent calls succeed.",
+      "expected_test_assertion": "The gateway's retry logic kicks in and the second call returns the real reply. The test passes if the user-visible result is correct AND the chaos events show both the 503 and the recovery."
+    }
+  ]
+}

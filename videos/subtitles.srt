@@ -1,0 +1,64 @@
+1
+00:00:00,500 --> 00:00:15,000
+Your LLM application has eval coverage that goes green on every CI run.
+Three weeks after launch, production hallucinates a model brownout and
+your retry logic hides the failure for five seconds. pytest-resilience-agent
+closes that gap.
+
+2
+00:00:15,000 --> 00:00:33,000
+A typical eval suite scores the clean path. It does not inject chaos at
+the gateway, the MCP server, or the rate limiter. The faults that wake
+you up at two in the morning live in that layer, and no scored eval
+catches them.
+
+3
+00:00:33,000 --> 00:00:48,000
+Resilience tests live on a different axis from eval tests. The eval
+suite measures what you can imagine; the resilience suite reacts to what
+production actually throws. Both matter. They compose without overlap.
+
+4
+00:00:48,000 --> 00:01:06,000
+Step one. The plugin talks to the Lark MCP server and pulls the failing
+tests in your project. Three failures arrive, each carrying its
+last-failure string. The pipeline takes those strings as the input
+signal.
+
+5
+00:01:06,000 --> 00:01:28,000
+Step two. The generator matches each failure string against a regex
+rule set and picks the chaos scenarios that reproduce the failure. The
+rules are deterministic. Anyone reading the project can audit the
+mapping in thirty seconds.
+
+6
+00:01:28,000 --> 00:01:50,000
+Step three. The plugin installs the chosen scenarios via respx, an
+httpx transport mock. The application under test sees a real broken
+gateway, not a mocked client in its own code. Same code path as
+production, controlled fault injection at the wire.
+
+7
+00:01:50,000 --> 00:02:08,000
+Step four. Tests pass under controlled chaos, the plugin reports each
+resolution back to Lark, and the Lark failure UI now shows the new
+pytest path next to the original failure. The loop closes.
+
+8
+00:02:08,000 --> 00:02:30,000
+The whole pipeline is one pytest plugin with one marker, two fixtures,
+and a transport-layer mock. Same scenarios work against the OpenAI SDK,
+Anthropic SDK, or raw httpx. End-user code does not change.
+
+9
+00:02:30,000 --> 00:02:45,000
+Sixteen tests pass at submission, nine chaos scenarios ship in the box,
+and the full Lark to pytest to resolution loop runs in one command on a
+clean checkout. No external accounts required.
+
+10
+00:02:45,000 --> 00:03:00,000
+pytest-resilience-agent. Open source on GitHub. Built on Lark MCP, the
+TrueFoundry AI Gateway, and pytest for the DevNetwork AI plus ML
+Hackathon 2026. Thanks for watching.

@@ -1,0 +1,24 @@
+[Script Info]
+ScriptType: v4.00+
+PlayResX: 1920
+PlayResY: 1080
+WrapStyle: 0
+ScaledBorderAndShadow: yes
+YCbCr Matrix: TV.709
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,Inter,38,&H00FFFFFF,&H00FFFFFF,&H00000000,&HB0000000,-1,0,0,0,100,100,0,0,3,8,0,2,80,80,80,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:00.50,0:00:15.00,Default,,0,0,0,,Your LLM application has eval coverage that goes green on every CI run.\NThree weeks after launch, production hallucinates a model brownout and\Nyour retry logic hides the failure for five seconds. pytest-resilience-agent\Ncloses that gap.
+Dialogue: 0,0:00:15.00,0:00:33.00,Default,,0,0,0,,A typical eval suite scores the clean path. It does not inject chaos at\Nthe gateway, the MCP server, or the rate limiter. The faults that wake\Nyou up at two in the morning live in that layer, and no scored eval\Ncatches them.
+Dialogue: 0,0:00:33.00,0:00:48.00,Default,,0,0,0,,Resilience tests live on a different axis from eval tests. The eval\Nsuite measures what you can imagine; the resilience suite reacts to what\Nproduction actually throws. Both matter. They compose without overlap.
+Dialogue: 0,0:00:48.00,0:01:06.00,Default,,0,0,0,,Step one. The plugin talks to the Lark MCP server and pulls the failing\Ntests in your project. Three failures arrive, each carrying its\Nlast-failure string. The pipeline takes those strings as the input\Nsignal.
+Dialogue: 0,0:01:06.00,0:01:28.00,Default,,0,0,0,,Step two. The generator matches each failure string against a regex\Nrule set and picks the chaos scenarios that reproduce the failure. The\Nrules are deterministic. Anyone reading the project can audit the\Nmapping in thirty seconds.
+Dialogue: 0,0:01:28.00,0:01:50.00,Default,,0,0,0,,Step three. The plugin installs the chosen scenarios via respx, an\Nhttpx transport mock. The application under test sees a real broken\Ngateway, not a mocked client in its own code. Same code path as\Nproduction, controlled fault injection at the wire.
+Dialogue: 0,0:01:50.00,0:02:08.00,Default,,0,0,0,,Step four. Tests pass under controlled chaos, the plugin reports each\Nresolution back to Lark, and the Lark failure UI now shows the new\Npytest path next to the original failure. The loop closes.
+Dialogue: 0,0:02:08.00,0:02:30.00,Default,,0,0,0,,The whole pipeline is one pytest plugin with one marker, two fixtures,\Nand a transport-layer mock. Same scenarios work against the OpenAI SDK,\NAnthropic SDK, or raw httpx. End-user code does not change.
+Dialogue: 0,0:02:30.00,0:02:45.00,Default,,0,0,0,,Sixteen tests pass at submission, nine chaos scenarios ship in the box,\Nand the full Lark to pytest to resolution loop runs in one command on a\Nclean checkout. No external accounts required.
+Dialogue: 0,0:02:45.00,0:03:00.00,Default,,0,0,0,,pytest-resilience-agent. Open source on GitHub. Built on Lark MCP, the\NTrueFoundry AI Gateway, and pytest for the DevNetwork AI plus ML\NHackathon 2026. Thanks for watching.
