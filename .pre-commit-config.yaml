@@ -24,3 +24,9 @@ repos:
         language: system
         types: [text]
         pass_filenames: true
+
+      - id: commit-msg-style
+        name: Commit message style (no vague cleanup-only subjects)
+        entry: python scripts/check_commit_msg.py
+        language: system
+        stages: [commit-msg]
