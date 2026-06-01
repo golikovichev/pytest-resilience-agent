@@ -7,7 +7,7 @@
 **Built for:** [DevNetwork AI + ML Hackathon 2026](https://devnetwork-ai-ml-hack-2026.devpost.com/)
 **Targeted sponsor challenges:** Lark, TrueFoundry
 **Stack:** Python · pytest · Lark MCP · TrueFoundry AI Gateway · httpx
-**Demo video:** [videos/pytest-resilience-agent-demo.mp4](videos/pytest-resilience-agent-demo.mp4) (3 min, captions burned in, royalty-free background music; see [videos/CREDITS.md](videos/CREDITS.md))
+**Demo video:** [YouTube (3 min)](https://youtu.be/LIB6yEZajK8) · also available offline as [videos/pytest-resilience-agent-demo.mp4](videos/pytest-resilience-agent-demo.mp4). See [videos/CREDITS.md](videos/CREDITS.md) for music attribution.
 
 ---
 

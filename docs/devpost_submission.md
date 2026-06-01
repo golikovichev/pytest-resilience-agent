@@ -100,7 +100,7 @@ Stack: Python 3.11+, pytest 8, respx for HTTP transport patching, httpx for the 
 ## Try it out / repository / demo
 
 - **GitHub:** https://github.com/golikovichev/pytest-resilience-agent
-- **Demo video:** [unlisted YouTube link - to be added after upload]
+- **Demo video:** https://youtu.be/LIB6yEZajK8 (3 min, unlisted)
 - **Hosted demo:** clone the repo and run `python -X utf8 -m demo.run_full_loop` - no accounts required
 
 ## Submitter info
