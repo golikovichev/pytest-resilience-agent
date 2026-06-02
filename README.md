@@ -1,5 +1,12 @@
 # pytest-resilience-agent
 
+[![CI](https://github.com/golikovichev/pytest-resilience-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/golikovichev/pytest-resilience-agent/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/golikovichev/pytest-resilience-agent/actions/workflows/codeql.yml/badge.svg)](https://github.com/golikovichev/pytest-resilience-agent/actions/workflows/codeql.yml)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13012/badge)](https://www.bestpractices.dev/projects/13012)
+[![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Last commit](https://img.shields.io/github/last-commit/golikovichev/pytest-resilience-agent)](https://github.com/golikovichev/pytest-resilience-agent/commits/main)
+
 > Auto-generated resilience tests for LLM applications. Powered by Lark MCP and TrueFoundry AI Gateway.
 
 ![Full loop demo output](docs/screenshot/demo_full_loop.png)
