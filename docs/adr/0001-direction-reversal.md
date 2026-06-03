@@ -10,8 +10,8 @@ The LLM testing ecosystem in 2026 is dominated by eval frameworks (DeepEval,
 Opik, pytest-evals, Langfuse, Phoenix evals). They all share a direction:
 the engineer writes evals against a known specification, runs them, and
 gets a score. This works well for correctness questions answered on a
-clean path: «does this prompt return JSON?», «does the answer cite the
-right facts?».
+clean path: "does this prompt return JSON?", "does the answer cite the
+right facts?".
 
 Production failure modes the team actually pays for are different:
 
@@ -47,9 +47,9 @@ The two suites compose without overlap.
 ## Alternatives considered
 
 - **Build on top of an existing eval framework.** Rejected: the eval
-  frameworks treat each test as «one run, one score». Resilience tests
+  frameworks treat each test as "one run, one score". Resilience tests
   need explicit fault injection and assertions on retry / fallback
-  behaviour, which does not fit cleanly into «run and score».
+  behaviour, which does not fit cleanly into "run and score".
 - **Process-level chaos (kill processes, drop packets).** Rejected for
   v0.1: too platform-specific. The HTTP-layer approach covers gateway,
   model, MCP, and rate limiter in one mechanism.

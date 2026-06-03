@@ -1,7 +1,7 @@
 """Generate resilience test files from observed failures.
 
-Mirrors the Lark sponsor challenge example («coding agent setup that
-listens for failing tests and creates PRs to fix them»). For each
+Mirrors the Lark sponsor challenge example ("coding agent setup that
+listens for failing tests and creates PRs to fix them"). For each
 failing test reported by Lark, the generator picks the relevant chaos
 scenario(s) and emits a runnable pytest file that reproduces the
 failure under controlled conditions.

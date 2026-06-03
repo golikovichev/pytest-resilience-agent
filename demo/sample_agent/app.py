@@ -1,6 +1,6 @@
 """Sample LLM-powered FastAPI agent.
 
-This is the «application under test» that the demo exercises. The agent
+This is the "application under test" that the demo exercises. The agent
 calls the AI Gateway to summarise customer emails, with one retry on
 non-success status codes and a clear error path when the gateway itself
 fails persistently. It is intentionally minimal so the resilience

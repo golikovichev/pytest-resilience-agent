@@ -32,8 +32,8 @@ are ordered (first match wins), and are easy to read in one glance.
 The LLM-driven classifier would be a more interesting demo, but it adds
 real cost (each generation hits a model), introduces a flake source
 (model variability), and requires API credentials to run the test
-suite. For a hackathon submission whose contract is «judges clone and
-run», the rule-based path is the right v0.1 trade-off.
+suite. For a hackathon submission whose contract is "judges clone and
+run", the rule-based path is the right v0.1 trade-off.
 
 ## When to revisit
 

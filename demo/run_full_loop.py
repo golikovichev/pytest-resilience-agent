@@ -3,7 +3,7 @@
 Walks the entire product story in one script, with zero external accounts:
 
 1. Spin up the mock Lark MCP server (ASGI in-process) and seed three
-   failing tests in the «demo» project.
+   failing tests in the "demo" project.
 2. Pull the failures via LarkMCPClient pointed at the in-process server.
 3. Generate a resilience pytest file for each failure (chosen scenarios
    matched to the failure text).
@@ -12,7 +12,7 @@ Walks the entire product story in one script, with zero external accounts:
    to the mock Lark so the failure UI would show the new pytest path.
 6. Print a rich summary table.
 
-This is the «one command and you see the whole product» entry point.
+This is the "one command and you see the whole product" entry point.
 
 Run::
 

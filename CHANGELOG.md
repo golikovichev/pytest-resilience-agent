@@ -62,7 +62,7 @@ TrueFoundry sponsor tracks.
 **Demo entry points**
 - `demo/run_demo.py`: drives the sample FastAPI agent through every chaos
   scenario with a Rich-table summary
-- `demo/run_full_loop.py`: full end-to-end loop — spins up mock Lark
+- `demo/run_full_loop.py`: full end-to-end loop - spins up mock Lark
   server in a background thread, pulls failures, generates resilience
   tests, runs pytest, reports resolutions back to Lark
 - `demo/mock_truefoundry.py`: in-process mock of the TrueFoundry AI
