@@ -70,7 +70,6 @@ Stack: Python 3.11+, pytest 8, respx for HTTP transport patching, httpx for the 
 - **Direction reversal.** Eval frameworks assume a clean spec and grade the model. Resilience tests have a different structure: declared faults, contract on the user-visible behaviour, no direct correctness grade. The pytest marker plus fixture combo turned out to be the right shape, but the first three attempts treated chaos as a parameter to a parametrize call, which made the test bodies unreadable.
 - **respx versus monkeypatch.** Early prototypes patched the gateway client directly. That works for our own code but misses any path that goes through the OpenAI SDK. Switching to respx at the transport layer made the plugin work for any agent that talks to LLM infrastructure over httpx.
 - **Subprocess rootdir.** The full-loop demo runs pytest in a subprocess against a temp directory. The first version inherited the project pyproject.toml and picked up `testpaths = ["tests"]`, so the generated tests in the temp dir were silently skipped. The fix is `--override-ini testpaths= --rootdir <tempdir>` on the subprocess command line.
-- **Anti-AI hygiene.** Every README, source file, and ADR went through a pre-commit anti-AI scan (em-dashes, curly quotes, buzzword vocabulary) before it could ship. This is for an honest reason on our side but also produced a cleaner repo as a side effect.
 
 ## Accomplishments
 
