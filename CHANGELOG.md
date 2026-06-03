@@ -77,7 +77,7 @@ TrueFoundry sponsor tracks.
   chaos scenario, the timeline export, and the report hook
 - 5 example end-user tests in `demo/example_agent_tests/` showing the
   four patterns we expect adopters to copy
-- Anti-AI marker scan via `scripts/check_anti_ai_markers.py` plus
+- Prose style scanner via `scripts/check_text_style.py` plus
   pre-commit configuration (ruff format + lint, trailing-whitespace,
   YAML/TOML/large-file checks)
 - 3 ADRs in `docs/adr/`:
