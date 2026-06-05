@@ -392,6 +392,46 @@ class NetworkBlip(Scenario):
         )
 
 
+# ---------------------------------------------------------------------------
+# Scenario: malformed_json
+# ---------------------------------------------------------------------------
+
+
+class MalformedJSON(Scenario):
+    """Gateway returns 200 but with a non-JSON body (an HTML error page).
+
+    Mirrors a proxy or CDN that swallows the upstream failure and serves its
+    own 200 HTML. Agent code that calls ``response.json()`` without guarding
+    against decode errors surfaces this as an unhandled exception rather than
+    a graceful fallback.
+    """
+
+    name = "malformed_json"
+
+    def apply(self) -> ScenarioResult:
+        body = "<html><body><h1>502 Bad Gateway</h1></body></html>"
+
+        def routed(request: httpx.Request) -> httpx.Response:
+            self._calls += 1
+            return httpx.Response(
+                200,
+                headers={"content-type": "text/html; charset=utf-8"},
+                text=body,
+            )
+
+        self._route = self.mock.post(self.target_url).mock(side_effect=routed)
+        return ScenarioResult(
+            scenario=self.name,
+            detail="gateway returns 200 with an HTML body instead of JSON",
+            metadata={"content_type": "text/html"},
+        )
+
+
+# ---------------------------------------------------------------------------
+# Registry
+# ---------------------------------------------------------------------------
+
+
 _REGISTRY: dict[str, Callable[[respx.MockRouter, str], Scenario]] = {
     LLMTimeout.name: lambda mock, url: LLMTimeout(mock, url),
     LLM5xx.name: lambda mock, url: LLM5xx(mock, url),
@@ -402,6 +442,7 @@ _REGISTRY: dict[str, Callable[[respx.MockRouter, str], Scenario]] = {
     WrongModelReturned.name: lambda mock, url: WrongModelReturned(mock, url),
     StreamStall.name: lambda mock, url: StreamStall(mock, url),
     NetworkBlip.name: lambda mock, url: NetworkBlip(mock, url),
+    MalformedJSON.name: lambda mock, url: MalformedJSON(mock, url),
 }
 
 

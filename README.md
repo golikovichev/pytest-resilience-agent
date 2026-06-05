@@ -98,6 +98,7 @@ pytest -m resilience -v
 | `wrong_model_returned` | Gateway silently routes to an unintended model |
 | `stream_stall` | 200 with empty content (silent quality bug) |
 | `network_blip` | ConnectError on first N calls |
+| `malformed_json` | 200 with an HTML error body instead of JSON (proxy swallowed the failure) |
 
 ## Live sponsor integration
 
@@ -168,7 +169,7 @@ python -m pip install -e ".[demo,dev]"
 
 Three entry points, ordered by how much of the story they show.
 
-**1. Run the test suite (16 tests, all chaos scenarios verified)**
+**1. Run the test suite (17 tests, all chaos scenarios verified)**
 
 ```bash
 python -X utf8 -m pytest -v -m "not slow"

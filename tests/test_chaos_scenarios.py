@@ -7,6 +7,8 @@ plugin does what the README claims.
 
 from __future__ import annotations
 
+import json
+
 import httpx
 import pytest
 
@@ -152,6 +154,26 @@ def test_network_blip_raises_connect_error_then_recovers() -> None:
             r2 = client.post(controller.target_gateway_url, json={"q": 2})
             assert r2.status_code == 200
             assert "post-blip ok" in r2.json()["choices"][0]["message"]["content"]
+    finally:
+        controller.exit()
+
+
+def test_malformed_json_returns_non_json_body() -> None:
+    """malformed_json: gateway returns 200 but the body is an HTML error page.
+
+    Mirrors a misconfigured proxy or CDN that swallows the upstream error and
+    serves its own 200 HTML. Agent code that calls response.json() blindly
+    raises a JSONDecodeError instead of handling the failure.
+    """
+    controller = ChaosController(scenarios=["malformed_json"])
+    controller.enter()
+    try:
+        with httpx.Client() as client:
+            r = client.post(controller.target_gateway_url, json={"q": 1})
+            assert r.status_code == 200
+            assert "json" not in r.headers.get("content-type", "").lower()
+            with pytest.raises(json.JSONDecodeError):
+                r.json()
     finally:
         controller.exit()
 

@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- New `malformed_json` chaos scenario: the gateway returns HTTP 200 with an HTML error body instead of JSON, mirroring a proxy or CDN that swallows the upstream failure and serves its own page. Agent code that calls `response.json()` without guarding against decode errors surfaces this as an unhandled exception rather than a graceful fallback. Brings the built-in scenario count to ten.
+
 ### Planned for v0.2
 - Multi-turn conversation chaos (failure injection mid-conversation)
 - Semantic assertion hooks (composability with eval frameworks)
@@ -77,8 +80,7 @@ TrueFoundry sponsor tracks.
   chaos scenario, the timeline export, and the report hook
 - 5 example end-user tests in `demo/example_agent_tests/` showing the
   four patterns we expect adopters to copy
-- Prose style scanner via `scripts/check_text_style.py` plus
-  pre-commit configuration (ruff format + lint, trailing-whitespace,
+- pre-commit configuration (ruff format + lint, trailing-whitespace,
   YAML/TOML/large-file checks)
 - 3 ADRs in `docs/adr/`:
   - 0001: resilience-first direction, not eval-first
