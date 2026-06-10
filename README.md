@@ -9,6 +9,8 @@
 
 > Auto-generated resilience tests for LLM applications. Powered by Lark MCP and TrueFoundry AI Gateway.
 
+![pytest-resilience-agent demo](assets/demo.gif)
+
 ![Full loop demo output](docs/screenshot/demo_full_loop.png)
 
 **Built for:** [DevNetwork AI + ML Hackathon 2026](https://devnetwork-ai-ml-hack-2026.devpost.com/)
