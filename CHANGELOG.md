@@ -7,14 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-- New `malformed_json` chaos scenario: the gateway returns HTTP 200 with an HTML error body instead of JSON, mirroring a proxy or CDN that swallows the upstream failure and serves its own page. Agent code that calls `response.json()` without guarding against decode errors surfaces this as an unhandled exception rather than a graceful fallback. Brings the built-in scenario count to ten.
-
-### Planned for v0.2
-- Multi-turn conversation chaos (failure injection mid-conversation)
+### Planned
 - Semantic assertion hooks (composability with eval frameworks)
 - LLM-driven scenario classifier behind the existing `pick_scenarios` interface
 - Scenario composition primitives (e.g. `rate_limit` then `partial_outage`)
+
+## [0.2.0] - 2026-06-11
+
+### Added
+- Multi-turn conversation chaos. The `resilience` marker now accepts
+  `turns=[[...], [...], ...]`, one scenario set per conversation turn, advanced
+  with `chaos.next_turn()`. Each turn is an independent chaos window: advancing
+  reverts the current turn's scenarios and applies the next turn's with fresh
+  call counters, so chaos can appear and clear mid-conversation (turn 1 clean,
+  turn 2 brownout, turn 3 recovered). `turns=` and `scenarios=` are mutually
+  exclusive; combining them, or advancing past the last turn, raises a clear
+  usage error. Each turn boundary emits a `chaos.turn.N` OpenTelemetry span.
+- New `malformed_json` chaos scenario: the gateway returns HTTP 200 with an HTML error body instead of JSON, mirroring a proxy or CDN that swallows the upstream failure and serves its own page. Agent code that calls `response.json()` without guarding against decode errors surfaces this as an unhandled exception rather than a graceful fallback. Brings the built-in scenario count to ten.
 
 ## [0.1.0] - 2026-05-27
 

@@ -51,8 +51,10 @@ def pytest_configure(config: pytest.Config) -> None:
     """
     config.addinivalue_line(
         "markers",
-        "resilience(scenarios): inject chaos scenarios from the named set "
-        "before running the test (e.g. llm_timeout, rate_limit, mcp_error)",
+        "resilience(scenarios, turns): inject chaos before running the test. "
+        "scenarios=[...] applies one set for the whole test; turns=[[...], [...]] "
+        "binds a set per conversation turn, advanced with chaos.next_turn(). "
+        "The two are mutually exclusive.",
     )
 
 
@@ -115,12 +117,14 @@ def chaos(request: pytest.FixtureRequest) -> ChaosController:
 
     marker = request.node.get_closest_marker("resilience")
     scenarios = list(marker.kwargs.get("scenarios", [])) if marker else []
+    turns = marker.kwargs.get("turns") if marker else None
     gateway_url = request.config.getoption("--resilience-gateway-url") or os.environ.get(
         "TFY_GATEWAY_URL"
     )
     lark_url = request.config.getoption("--resilience-lark-url") or os.environ.get("LARK_MCP_URL")
     controller = ChaosController(
         scenarios=scenarios,
+        turns=turns,
         target_gateway_url=gateway_url,
         target_lark_url=lark_url,
     )

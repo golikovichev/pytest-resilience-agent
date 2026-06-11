@@ -87,6 +87,35 @@ Run with the standard pytest invocation:
 pytest -m resilience -v
 ```
 
+### Multi-turn chaos
+
+Real agents hold a conversation, and infrastructure can degrade partway
+through it. Use `turns=` to bind a scenario set to each conversation turn and
+advance with `chaos.next_turn()`. Each turn is an independent window: counters
+reset on every turn, so chaos can appear and clear mid-conversation.
+
+```python
+@pytest.mark.resilience(turns=[
+    [],            # turn 1: clean
+    ["llm_5xx"],   # turn 2: gateway 5xx
+    [],            # turn 3: recovered
+])
+def test_agent_recovers_mid_conversation(ai_gateway, chaos):
+    reply1 = ai_gateway.chat([{"role": "user", "content": "start a plan"}])
+    assert reply1.content
+
+    chaos.next_turn()
+    reply2 = ai_gateway.chat([{"role": "user", "content": "add a step"}])
+    assert reply2.content, "agent must survive the brownout on turn 2"
+
+    chaos.next_turn()
+    reply3 = ai_gateway.chat([{"role": "user", "content": "summarise"}])
+    assert reply3.content
+```
+
+`turns=` and `scenarios=` are mutually exclusive. Each turn boundary emits a
+`chaos.turn.N` OpenTelemetry span.
+
 ## Built-in chaos scenarios
 
 | Scenario | What it does |
@@ -147,8 +176,8 @@ python -X utf8 scripts/smoke_live_integrations.py
 ## Roadmap
 
 - v0.1 (hackathon submission, May 2026): nine built-in chaos scenarios, live Lark + TrueFoundry + Crusoe integration, mock-server fallbacks, reference tests, end-to-end demo.
-- v0.2: multi-turn chaos, semantic assertion hooks, observability spans through OpenTelemetry.
-- v0.3: chaos scenario composition (e.g. `rate_limit` then `partial_outage`), property-based fuzzing of timing.
+- v0.2 (June 2026): multi-turn conversation chaos (failure injected and cleared per turn), OpenTelemetry spans for every chaos event and turn boundary.
+- v0.3: semantic assertion hooks, chaos scenario composition (e.g. `rate_limit` then `partial_outage`), property-based fuzzing of timing.
 
 ## Why this is different
 
