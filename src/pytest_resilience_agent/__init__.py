@@ -5,4 +5,4 @@ infrastructure breaks: gateway timeouts, model brownouts, MCP server errors,
 rate limits, partial outages.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

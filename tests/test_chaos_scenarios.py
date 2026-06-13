@@ -178,27 +178,21 @@ def test_malformed_json_returns_non_json_body() -> None:
         controller.exit()
 
 
-# llm_timeout uses time.sleep so it's slow. Run on demand only.
-@pytest.mark.slow
 def test_llm_timeout_triggers_read_timeout() -> None:
-    """llm_timeout: short client timeout + long server sleep raises ReadTimeout."""
-    controller = ChaosController(scenarios=["llm_timeout"])
-    # Shrink the delay to keep the test snappy
-    controller._scenarios = []  # type: ignore[attr-defined]
-    controller.scenario_names = []
-    # Apply a fast-timeout variant manually
+    """llm_timeout makes the mocked gateway raise httpx.ReadTimeout on call."""
     import respx
 
     from pytest_resilience_agent.scenarios import LLMTimeout
 
-    controller._mock = respx.mock(assert_all_called=False, assert_all_mocked=False)
-    controller._mock.start()
-    fast = LLMTimeout(controller._mock, controller.target_gateway_url, delay_seconds=1.5)
-    fast.apply()
+    controller = ChaosController(scenarios=["llm_timeout"])
+    mock = respx.mock(assert_all_called=False, assert_all_mocked=False)
+    mock.start()
+    scenario = LLMTimeout(mock, controller.target_gateway_url, delay_seconds=1.5)
+    scenario.apply()
     try:
-        with httpx.Client(timeout=0.2) as client:
+        with httpx.Client() as client:
             with pytest.raises(httpx.ReadTimeout):
                 client.post(controller.target_gateway_url, json={"q": 1})
     finally:
-        fast.revert()
-        controller._mock.stop()
+        scenario.revert()
+        mock.stop()

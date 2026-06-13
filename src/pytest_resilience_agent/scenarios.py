@@ -12,7 +12,6 @@ work for any code that uses httpx (including end-user agents).
 
 from __future__ import annotations
 
-import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
@@ -61,7 +60,12 @@ class Scenario:
 
 
 class LLMTimeout(Scenario):
-    """Gateway response stalls past the request timeout."""
+    """Gateway response stalls past the request timeout.
+
+    Under the mocked transport this raises httpx.ReadTimeout on call;
+    ``delay_seconds`` is documentation-only metadata for the simulated
+    stall duration, it does not introduce a real wait.
+    """
 
     name = "llm_timeout"
 
@@ -75,17 +79,22 @@ class LLMTimeout(Scenario):
         self.delay_seconds = delay_seconds
 
     def apply(self) -> ScenarioResult:
-        def slow_response(request: httpx.Request) -> httpx.Response:
+        def timed_out_request(request: httpx.Request) -> httpx.Response:
             self._calls += 1
-            # Simulate a long wait. Tests use short timeouts, so this
-            # triggers an httpx.ReadTimeout on the caller side.
-            time.sleep(self.delay_seconds)
-            return httpx.Response(200, json={"choices": []})
+            # A gateway that stalls past the caller read timeout surfaces as
+            # httpx.ReadTimeout. Raise it directly: under a mocked transport a
+            # real time.sleep does not trip the caller transport-level timeout,
+            # and it would block the suite for the full delay. delay_seconds is
+            # kept as metadata to document the simulated stall duration.
+            raise httpx.ReadTimeout(
+                f"simulated gateway stall past {self.delay_seconds}s read timeout",
+                request=request,
+            )
 
-        self._route = self.mock.post(self.target_url).mock(side_effect=slow_response)
+        self._route = self.mock.post(self.target_url).mock(side_effect=timed_out_request)
         return ScenarioResult(
             scenario=self.name,
-            detail=f"will sleep {self.delay_seconds}s before responding",
+            detail=f"raises ReadTimeout (simulated stall {self.delay_seconds}s)",
             metadata={"delay_seconds": self.delay_seconds},
         )
 
