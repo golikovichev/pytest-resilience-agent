@@ -20,16 +20,18 @@ def test_resilience_marker_registered(pytestconfig: pytest.Config) -> None:
 
 def test_chaos_controller_records_enter_and_exit() -> None:
     """ChaosController records lifecycle events for the scenarios it was given."""
-    controller = ChaosController(scenarios=["llm_timeout", "rate_limit"])
+    # One gateway scenario + one MCP scenario: they hit different URLs, so both
+    # fire (two gateway scenarios would shadow each other and are rejected).
+    controller = ChaosController(scenarios=["llm_timeout", "mcp_error"])
     controller.enter()
     try:
         applied = [e.scenario for e in controller.events]
         assert "llm_timeout" in applied
-        assert "rate_limit" in applied
+        assert "mcp_error" in applied
     finally:
         controller.exit()
     removed = [e for e in controller.events if e.detail == "scenario removed"]
-    assert {e.scenario for e in removed} == {"llm_timeout", "rate_limit"}
+    assert {e.scenario for e in removed} == {"llm_timeout", "mcp_error"}
 
 
 def test_chaos_controller_rejects_unknown_scenario() -> None:

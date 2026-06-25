@@ -14,9 +14,9 @@ import pytest
 
 from pytest_resilience_agent.chaos import ChaosController
 
-# Faster timeouts so the suite stays quick. Real production timeouts are
-# higher; the LLMTimeout test uses 0.2s on the caller and 1.5s on the
-# server-side sleep so the assertion is reliable on slow CI.
+# The suite stays fast because no scenario sleeps: timeouts are simulated by
+# raising httpx.ReadTimeout directly under the mocked transport, so there is no
+# real wait to make assertions flaky on slow CI.
 
 
 def test_llm_5xx_returns_502_then_succeeds() -> None:
@@ -196,3 +196,86 @@ def test_llm_timeout_triggers_read_timeout() -> None:
     finally:
         scenario.revert()
         mock.stop()
+
+
+def test_auth_expiry_returns_401_then_succeeds() -> None:
+    """auth_expiry: first POST 401 (token expired), second succeeds after refresh."""
+    controller = ChaosController(scenarios=["auth_expiry"])
+    controller.enter()
+    try:
+        with httpx.Client() as client:
+            r1 = client.post(controller.target_gateway_url, json={"q": 1})
+            assert r1.status_code == 401
+            assert r1.json()["error"]["type"] == "invalid_api_key"
+            r2 = client.post(controller.target_gateway_url, json={"q": 2})
+            assert r2.status_code == 200
+            assert "re-authed" in r2.json()["choices"][0]["message"]["content"]
+    finally:
+        controller.exit()
+
+
+def test_context_overflow_returns_400_context_length() -> None:
+    """context_overflow: gateway returns 400 context_length_exceeded on every call."""
+    controller = ChaosController(scenarios=["context_overflow"])
+    controller.enter()
+    try:
+        with httpx.Client() as client:
+            r = client.post(controller.target_gateway_url, json={"q": 1})
+            assert r.status_code == 400
+            assert r.json()["error"]["code"] == "context_length_exceeded"
+    finally:
+        controller.exit()
+
+
+def test_mcp_timeout_raises_read_timeout_on_lark() -> None:
+    """mcp_timeout: the MCP (Lark) layer raises httpx.ReadTimeout."""
+    controller = ChaosController(scenarios=["mcp_timeout"])
+    controller.enter()
+    try:
+        with httpx.Client() as client:
+            with pytest.raises(httpx.ReadTimeout):
+                client.post(controller.target_lark_url, json={"jsonrpc": "2.0"})
+    finally:
+        controller.exit()
+
+
+def test_compose_sequences_failures_then_recovers() -> None:
+    """compose=[rate_limit, partial_outage]: call 1 = 429, call 2 = 503, call 3 = 200."""
+    controller = ChaosController(compose=["rate_limit", "partial_outage"])
+    controller.enter()
+    try:
+        with httpx.Client() as client:
+            r1 = client.post(controller.target_gateway_url, json={"q": 1})
+            assert r1.status_code == 429
+            r2 = client.post(controller.target_gateway_url, json={"q": 2})
+            assert r2.status_code == 503
+            r3 = client.post(controller.target_gateway_url, json={"q": 3})
+            assert r3.status_code == 200
+            assert r3.json()["choices"][0]["message"]["content"] == "recovered"
+    finally:
+        controller.exit()
+
+
+def test_compose_rejects_non_composable_scenario() -> None:
+    """compose= with a non-gateway scenario (mcp_error) raises a usage error."""
+    with pytest.raises(pytest.UsageError):
+        ChaosController(compose=["rate_limit", "mcp_error"])
+
+
+def test_compose_and_scenarios_are_mutually_exclusive() -> None:
+    """Passing both compose= and scenarios= is a usage error."""
+    with pytest.raises(pytest.UsageError):
+        ChaosController(scenarios=["rate_limit"], compose=["partial_outage"])
+
+
+def test_two_gateway_scenarios_in_scenarios_list_is_rejected() -> None:
+    """Two same-layer scenarios in scenarios= would shadow each other -> usage error."""
+    with pytest.raises(pytest.UsageError):
+        ChaosController(scenarios=["rate_limit", "llm_5xx"])
+
+
+def test_gateway_plus_mcp_scenarios_still_allowed() -> None:
+    """One gateway + one MCP scenario hit different URLs, so they are allowed."""
+    controller = ChaosController(scenarios=["rate_limit", "mcp_error"])
+    controller.enter()
+    controller.exit()  # no usage error raised

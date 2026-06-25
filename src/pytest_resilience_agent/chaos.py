@@ -20,10 +20,15 @@ import respx
 from opentelemetry import trace
 
 from pytest_resilience_agent.scenarios import (
+    CompositeScenario,
     Scenario,
     build_scenario,
+    composable_scenarios,
     registered_scenarios,
 )
+
+# Scenarios that hit the Lark MCP layer rather than the gateway.
+_LARK_LAYER_SCENARIOS = frozenset({"mcp_error", "mcp_timeout"})
 
 _TRACER = trace.get_tracer("pytest-resilience-agent")
 
@@ -54,10 +59,12 @@ class ChaosController:
         target_gateway_url: str | None = None,
         target_lark_url: str | None = None,
         turns: list[list[str]] | None = None,
+        compose: list[str] | None = None,
     ) -> None:
-        if scenarios and turns is not None:
+        modes = [bool(scenarios), turns is not None, compose is not None]
+        if sum(modes) > 1:
             raise pytest.UsageError(
-                "resilience marker accepts either scenarios= or turns=, not both"
+                "resilience marker accepts only one of scenarios=, turns= or compose="
             )
         if turns is not None:
             if not turns:
@@ -69,8 +76,33 @@ class ChaosController:
                     f"unknown chaos scenario(s) in turns=: {sorted(set(unknown))}. "
                     f"Registered: {sorted(known)}"
                 )
+        if compose is not None:
+            if not compose:
+                raise pytest.UsageError("compose= must list at least one scenario")
+            composable = set(composable_scenarios())
+            non_composable = [n for n in compose if n not in composable]
+            if non_composable:
+                raise pytest.UsageError(
+                    f"non-composable scenario(s) in compose=: {sorted(set(non_composable))}. "
+                    f"Composable (gateway failures): {sorted(composable)}"
+                )
+        if scenarios and len(scenarios) > 1:
+            # Every gateway-layer scenario installs a route on the same gateway
+            # URL, and respx is last-route-wins, so two of them would silently
+            # shadow each other (same for the MCP layer). Catch it loudly and
+            # point at compose=, which sequences gateway failures on one route.
+            gateway_layer = [n for n in scenarios if n not in _LARK_LAYER_SCENARIOS]
+            mcp_layer = [n for n in scenarios if n in _LARK_LAYER_SCENARIOS]
+            for layer, group in (("gateway", gateway_layer), ("MCP", mcp_layer)):
+                if len(group) > 1:
+                    raise pytest.UsageError(
+                        f"scenarios={sorted(group)} all hit the {layer} endpoint and would "
+                        f"silently shadow each other (last route wins). Use compose= to "
+                        f"sequence gateway failures, or split them across separate tests."
+                    )
         self.scenario_names = list(scenarios) if scenarios else []
         self.turns = turns
+        self.compose = list(compose) if compose else None
         self.target_gateway_url = target_gateway_url or self.DEFAULT_GATEWAY_URL
         self.target_lark_url = target_lark_url or self.DEFAULT_LARK_URL
         self.events: list[ChaosEvent] = []
@@ -147,11 +179,28 @@ class ChaosController:
         self._mock.clear()  # drop the previous turn's routes
         self._apply_turn(self._turn_index + 1)
 
+    def _apply_compose(self, steps: list[str]) -> None:
+        """Install one composite scenario that walks a sequence of gateway failures."""
+        scenario = CompositeScenario(self._mock, self.target_gateway_url, steps)
+        result = scenario.apply()
+        self._scenarios.append(scenario)
+        self.events.append(
+            ChaosEvent(
+                scenario=result.scenario,
+                detail=result.detail,
+                metadata=result.metadata,
+            )
+        )
+        with _TRACER.start_as_current_span("chaos.compose") as span:
+            span.set_attribute("chaos.compose.steps", steps)
+
     def enter(self) -> None:
         """Start respx and install scenarios for turn 0 (or the single window)."""
         self._mock.start()
         if self.turns is not None:
             self._apply_turn(0)
+        elif self.compose is not None:
+            self._apply_compose(self.compose)
         else:
             self._apply_scenarios(self.scenario_names)
 
@@ -166,9 +215,14 @@ class ChaosController:
 
     def _target_for(self, scenario_name: str) -> str:
         """Pick gateway URL or Lark URL depending on which layer the scenario hits."""
-        if scenario_name == "mcp_error":
+        if scenario_name in _LARK_LAYER_SCENARIOS:
             return self.target_lark_url
         return self.target_gateway_url
 
 
-__all__ = ["ChaosController", "ChaosEvent", "registered_scenarios"]
+__all__ = [
+    "ChaosController",
+    "ChaosEvent",
+    "composable_scenarios",
+    "registered_scenarios",
+]

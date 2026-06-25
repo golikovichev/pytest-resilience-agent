@@ -64,8 +64,9 @@ The three pieces:
 ```bash
 pip install pytest-resilience-agent
 
-export TFY_GATEWAY_URL=https://your-tfy-gateway.example.com/v1
-export LARK_MCP_URL=https://your-lark-instance.example.com
+export RESILIENCE_GATEWAY_URL=https://your-gateway.example.com/v1
+# optional, only if you exercise the MCP layer:
+export RESILIENCE_LARK_URL=https://your-mcp-instance.example.com
 ```
 
 Write a resilience test:
@@ -130,6 +131,27 @@ def test_agent_recovers_mid_conversation(ai_gateway, chaos):
 | `stream_stall` | 200 with empty content (silent quality bug) |
 | `network_blip` | ConnectError on first N calls |
 | `malformed_json` | 200 with an HTML error body instead of JSON (proxy swallowed the failure) |
+| `auth_expiry` | 401 once (token expired mid-session), then succeeds after refresh |
+| `context_overflow` | 400 `context_length_exceeded` on every call |
+| `mcp_timeout` | MCP tool call hangs past the read timeout (raises ReadTimeout) |
+
+### Composed failures
+
+Real outages cascade: a rate limit during a brownout, a 5xx then a slow
+recovery. `compose=[...]` runs several gateway failures in sequence on one
+endpoint, then recovers. Call 1 hits the first failure, call 2 the second, and
+the call after the list succeeds.
+
+```python
+@pytest.mark.resilience(compose=["rate_limit", "partial_outage"])
+def test_agent_survives_cascading_failure(ai_gateway, chaos):
+    # call 1 -> 429, call 2 -> 503, call 3 -> 200
+    reply = ai_gateway.chat([{"role": "user", "content": "still there?"}])
+    assert reply.content, "agent must climb back out of a cascading outage"
+```
+
+`compose=` accepts the gateway-layer failures (`composable_scenarios()` lists
+them) and is mutually exclusive with `scenarios=` and `turns=`.
 
 ## Live sponsor integration
 
@@ -175,9 +197,10 @@ python -X utf8 scripts/smoke_live_integrations.py
 
 ## Roadmap
 
-- v0.1 (hackathon submission, May 2026): nine built-in chaos scenarios, live Lark + TrueFoundry + Crusoe integration, mock-server fallbacks, reference tests, end-to-end demo.
+- v0.1 (May 2026): nine built-in chaos scenarios, mock-server fallbacks, reference tests, end-to-end demo.
 - v0.2 (June 2026): multi-turn conversation chaos (failure injected and cleared per turn), OpenTelemetry spans for every chaos event and turn boundary.
-- v0.3: semantic assertion hooks, chaos scenario composition (e.g. `rate_limit` then `partial_outage`), property-based fuzzing of timing.
+- v1.0 (June 2026): thirteen built-in scenarios (added auth expiry, context overflow, MCP timeout), composed cascading failures (`compose=`), gateway-agnostic configuration (`RESILIENCE_GATEWAY_URL`), stable public API.
+- Next: semantic assertion hooks, property-based fuzzing of timing.
 
 ## Why this is different
 

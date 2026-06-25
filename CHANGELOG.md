@@ -5,12 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.0] - 2026-06-25
+
+### Added
+- Three new chaos scenarios: `auth_expiry` (401 mid-session, then succeeds
+  after refresh), `context_overflow` (400 `context_length_exceeded`), and
+  `mcp_timeout` (MCP tool call hangs past the read timeout). The built-in
+  scenario count is now thirteen.
+- Composed cascading failures. The `resilience` marker accepts `compose=[...]`,
+  which runs several gateway failures in sequence on one endpoint and then
+  recovers (call 1 hits the first failure, call 2 the second, the call after
+  the list succeeds). `compose=` covers the gateway-layer scenarios listed by
+  `composable_scenarios()` and is mutually exclusive with `scenarios=` and
+  `turns=`.
+- Stable public API: `pytest_resilience_agent` re-exports `ChaosController`,
+  `ChaosEvent`, `AIGatewayClient`, `ChatReply`, `registered_scenarios`, and
+  `composable_scenarios` under an explicit `__all__`.
+
+### Changed
+- Gateway configuration is provider-agnostic. The canonical env vars are
+  `RESILIENCE_GATEWAY_URL` and `RESILIENCE_LARK_URL`; the earlier
+  `TFY_GATEWAY_URL` and `LARK_MCP_URL` names still work as aliases.
 
 ### Planned
 - Semantic assertion hooks (composability with eval frameworks)
 - LLM-driven scenario classifier behind the existing `pick_scenarios` interface
-- Scenario composition primitives (e.g. `rate_limit` then `partial_outage`)
 
 ## [0.2.0] - 2026-06-11
 
@@ -77,8 +96,8 @@ TrueFoundry sponsor tracks.
 - `demo/run_full_loop.py`: full end-to-end loop - spins up mock Lark
   server in a background thread, pulls failures, generates resilience
   tests, runs pytest, reports resolutions back to Lark
-- `demo/mock_truefoundry.py`: in-process mock of the TrueFoundry AI
-  Gateway with a Gemini → Claude → local fallback chain
+- `demo/mock_truefoundry.py`: in-process mock of the AI gateway with a
+  multi-model fallback chain (primary -> backup -> local)
 - `demo/mock_lark.py`: in-process mock of the Lark MCP server with seeded
   failing-test data
 - `demo/sample_agent/app.py`: sample FastAPI agent that summarises

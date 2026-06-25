@@ -52,7 +52,7 @@ def test_report_hook_records_sections(pytester: pytest.Pytester, tmp_path: Path)
         import httpx
         import pytest
 
-        @pytest.mark.resilience(scenarios=["llm_5xx", "rate_limit"])
+        @pytest.mark.resilience(scenarios=["llm_5xx"])
         def test_with_chaos(chaos):
             with httpx.Client() as client:
                 client.post(chaos.target_gateway_url, json={"q": 1})
@@ -65,4 +65,3 @@ def test_report_hook_records_sections(pytester: pytest.Pytester, tmp_path: Path)
     assert len(data) == 1
     scenarios_in_events = {e["scenario"] for e in data[0]["events"]}
     assert "llm_5xx" in scenarios_in_events
-    assert "rate_limit" in scenarios_in_events

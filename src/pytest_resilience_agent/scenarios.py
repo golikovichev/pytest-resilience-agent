@@ -437,6 +437,229 @@ class MalformedJSON(Scenario):
 
 
 # ---------------------------------------------------------------------------
+# Scenario: auth_expiry
+# ---------------------------------------------------------------------------
+
+
+class AuthExpiry(Scenario):
+    """Access token expires mid-session: 401 once, then 200 after refresh.
+
+    Mirrors a short-lived gateway token that lapses between calls. Agent code
+    that refreshes credentials and retries recovers; code that treats 401 as a
+    hard failure surfaces it to the user. This is the same failure mode that
+    silently drops work when a save fires on a stale token.
+    """
+
+    name = "auth_expiry"
+
+    def __init__(
+        self,
+        mock: respx.MockRouter,
+        target_url: str,
+        fail_first_n: int = 1,
+    ) -> None:
+        super().__init__(mock, target_url)
+        self.fail_first_n = fail_first_n
+
+    def apply(self) -> ScenarioResult:
+        success_payload = {
+            "model": "primary-model",
+            "choices": [{"message": {"role": "assistant", "content": "re-authed"}}],
+        }
+
+        def routed(request: httpx.Request) -> httpx.Response:
+            self._calls += 1
+            if self._calls <= self.fail_first_n:
+                return httpx.Response(
+                    401,
+                    json={"error": {"type": "invalid_api_key", "message": "token expired"}},
+                )
+            return httpx.Response(200, json=success_payload)
+
+        self._route = self.mock.post(self.target_url).mock(side_effect=routed)
+        return ScenarioResult(
+            scenario=self.name,
+            detail=f"first {self.fail_first_n} call(s) return 401, then refresh succeeds",
+            metadata={"status_code": 401, "fail_first_n": self.fail_first_n},
+        )
+
+
+# ---------------------------------------------------------------------------
+# Scenario: context_overflow
+# ---------------------------------------------------------------------------
+
+
+class ContextOverflow(Scenario):
+    """Gateway rejects the request: input exceeds the model context window.
+
+    Returns 400 ``context_length_exceeded`` on every call. Agent code that
+    trims or summarises history before retrying recovers; code that resends the
+    same oversized prompt loops on the same error.
+    """
+
+    name = "context_overflow"
+
+    def apply(self) -> ScenarioResult:
+        def routed(request: httpx.Request) -> httpx.Response:
+            self._calls += 1
+            return httpx.Response(
+                400,
+                json={
+                    "error": {
+                        "type": "invalid_request_error",
+                        "code": "context_length_exceeded",
+                        "message": "input exceeds the model context window",
+                    }
+                },
+            )
+
+        self._route = self.mock.post(self.target_url).mock(side_effect=routed)
+        return ScenarioResult(
+            scenario=self.name,
+            detail="gateway returns 400 context_length_exceeded on every call",
+            metadata={"status_code": 400, "code": "context_length_exceeded"},
+        )
+
+
+# ---------------------------------------------------------------------------
+# Scenario: mcp_timeout
+# ---------------------------------------------------------------------------
+
+
+class MCPTimeout(Scenario):
+    """Lark MCP tool call hangs past the read timeout.
+
+    Raises ``httpx.ReadTimeout`` on the MCP layer (the gateway analogue is
+    ``llm_timeout``). Agent code that bounds tool latency and degrades
+    gracefully recovers; code that awaits the tool unboundedly hangs.
+    """
+
+    name = "mcp_timeout"
+
+    def apply(self) -> ScenarioResult:
+        def routed(request: httpx.Request) -> httpx.Response:
+            self._calls += 1
+            raise httpx.ReadTimeout("simulated MCP tool stall", request=request)
+
+        self._route = self.mock.post(self.target_url).mock(side_effect=routed)
+        return ScenarioResult(
+            scenario=self.name,
+            detail="MCP tool call raises ReadTimeout (tool hangs)",
+            metadata={"layer": "mcp"},
+        )
+
+
+# ---------------------------------------------------------------------------
+# Composition: sequence several gateway failures in one window, then recover
+# ---------------------------------------------------------------------------
+
+
+def _step_rate_limit(request: httpx.Request) -> httpx.Response:
+    return httpx.Response(429, headers={"Retry-After": "2"}, text="rate limited")
+
+
+def _step_partial_outage(request: httpx.Request) -> httpx.Response:
+    return httpx.Response(503, text="upstream unavailable")
+
+
+def _step_llm_5xx(request: httpx.Request) -> httpx.Response:
+    return httpx.Response(502, text="upstream broke")
+
+
+def _step_cost_exceeded(request: httpx.Request) -> httpx.Response:
+    return httpx.Response(402, json={"error": {"type": "quota_exceeded"}})
+
+
+def _step_auth_expiry(request: httpx.Request) -> httpx.Response:
+    return httpx.Response(401, json={"error": {"type": "invalid_api_key"}})
+
+
+def _step_context_overflow(request: httpx.Request) -> httpx.Response:
+    return httpx.Response(
+        400, json={"error": {"code": "context_length_exceeded"}}
+    )
+
+
+def _step_llm_timeout(request: httpx.Request) -> httpx.Response:
+    raise httpx.ReadTimeout("composed stall", request=request)
+
+
+def _step_network_blip(request: httpx.Request) -> httpx.Response:
+    raise httpx.ConnectError("composed network blip", request=request)
+
+
+# Ordered failure step per composable scenario name. Only gateway-layer
+# scenarios that produce one discrete failure are composable; "200-but-wrong"
+# scenarios (malformed_json, stream_stall, wrong_model_returned) and the MCP
+# layer are intentionally excluded so composition has clear sequence semantics.
+_COMPOSE_STEPS: dict[str, Callable[[httpx.Request], httpx.Response]] = {
+    "rate_limit": _step_rate_limit,
+    "partial_outage": _step_partial_outage,
+    "llm_5xx": _step_llm_5xx,
+    "cost_exceeded": _step_cost_exceeded,
+    "auth_expiry": _step_auth_expiry,
+    "context_overflow": _step_context_overflow,
+    "llm_timeout": _step_llm_timeout,
+    "network_blip": _step_network_blip,
+}
+
+
+def composable_scenarios() -> list[str]:
+    """Names usable inside ``compose=[...]`` (gateway failures with sequence semantics)."""
+    return sorted(_COMPOSE_STEPS)
+
+
+class CompositeScenario(Scenario):
+    """Apply several gateway failures in sequence on one endpoint, then recover.
+
+    ``compose=["rate_limit", "partial_outage"]`` makes call 1 return 429, call 2
+    return 503, and call 3 onward succeed. Real outages cascade (a rate limit
+    during a brownout), and a single overriding ``respx`` route cannot express
+    that; this composite owns one route whose behaviour walks the requested
+    sequence by call index.
+    """
+
+    name = "composite"
+
+    def __init__(
+        self,
+        mock: respx.MockRouter,
+        target_url: str,
+        steps: list[str],
+    ) -> None:
+        super().__init__(mock, target_url)
+        if not steps:
+            raise ValueError("compose=[...] needs at least one scenario")
+        unknown = [s for s in steps if s not in _COMPOSE_STEPS]
+        if unknown:
+            raise ValueError(
+                f"non-composable scenario(s) {sorted(set(unknown))}. "
+                f"Composable: {composable_scenarios()}"
+            )
+        self.steps = list(steps)
+
+    def apply(self) -> ScenarioResult:
+        recover_payload = {
+            "model": "primary-model",
+            "choices": [{"message": {"role": "assistant", "content": "recovered"}}],
+        }
+
+        def routed(request: httpx.Request) -> httpx.Response:
+            self._calls += 1
+            index = self._calls - 1
+            if index < len(self.steps):
+                return _COMPOSE_STEPS[self.steps[index]](request)
+            return httpx.Response(200, json=recover_payload)
+
+        self._route = self.mock.post(self.target_url).mock(side_effect=routed)
+        return ScenarioResult(
+            scenario=self.name,
+            detail=f"sequence: {' -> '.join(self.steps)} then recover",
+            metadata={"steps": self.steps},
+        )
+
+
+# ---------------------------------------------------------------------------
 # Registry
 # ---------------------------------------------------------------------------
 
@@ -452,6 +675,9 @@ _REGISTRY: dict[str, Callable[[respx.MockRouter, str], Scenario]] = {
     StreamStall.name: lambda mock, url: StreamStall(mock, url),
     NetworkBlip.name: lambda mock, url: NetworkBlip(mock, url),
     MalformedJSON.name: lambda mock, url: MalformedJSON(mock, url),
+    AuthExpiry.name: lambda mock, url: AuthExpiry(mock, url),
+    ContextOverflow.name: lambda mock, url: ContextOverflow(mock, url),
+    MCPTimeout.name: lambda mock, url: MCPTimeout(mock, url),
 }
 
 

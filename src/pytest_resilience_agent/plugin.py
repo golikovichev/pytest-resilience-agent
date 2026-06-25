@@ -19,6 +19,7 @@ Example usage in a test file::
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -29,6 +30,23 @@ from pytest_resilience_agent.gateway import AIGatewayClient
 # Module-level timeline collector. Populated by the chaos fixture finalizer
 # and dumped to disk by pytest_sessionfinish when --resilience-record is set.
 _TIMELINE: list[dict] = []
+
+
+def _resolve_url(config: pytest.Config, option: str, env_vars: tuple[str, ...]) -> str | None:
+    """Resolve a base URL from a CLI option first, then the env vars in order.
+
+    The generic ``RESILIENCE_*`` env var is the canonical name; vendor-specific
+    names (``TFY_GATEWAY_URL``, ``LARK_MCP_URL``) are kept as aliases so the
+    plugin works against any OpenAI-compatible gateway, not one vendor.
+    """
+    url = config.getoption(option)
+    if url:
+        return str(url)
+    for var in env_vars:
+        value = os.environ.get(var)
+        if value:
+            return value
+    return None
 
 
 def pytest_sessionstart(session: pytest.Session) -> None:
@@ -51,31 +69,34 @@ def pytest_configure(config: pytest.Config) -> None:
     """
     config.addinivalue_line(
         "markers",
-        "resilience(scenarios, turns): inject chaos before running the test. "
+        "resilience(scenarios, turns, compose): inject chaos before running the test. "
         "scenarios=[...] applies one set for the whole test; turns=[[...], [...]] "
-        "binds a set per conversation turn, advanced with chaos.next_turn(). "
-        "The two are mutually exclusive.",
+        "binds a set per conversation turn, advanced with chaos.next_turn(); "
+        "compose=[...] sequences gateway failures in one window (call 1 hits the "
+        "first, call 2 the second, then recovery). The three are mutually exclusive.",
     )
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
     """Register CLI options for the resilience plugin.
 
-    --resilience-gateway-url: base URL for the AI Gateway proxy (TrueFoundry)
-    --resilience-lark-url: base URL for the Lark MCP server
+    --resilience-gateway-url: base URL for the OpenAI-compatible AI gateway
+    --resilience-lark-url: base URL for the MCP server (optional)
     --resilience-record: write chaos events to a JSON timeline file
     """
     parser.addoption(
         "--resilience-gateway-url",
         action="store",
         default=None,
-        help="Base URL for the AI Gateway (TrueFoundry). Falls back to TFY_GATEWAY_URL env var.",
+        help="Base URL for the OpenAI-compatible AI gateway. "
+        "Falls back to RESILIENCE_GATEWAY_URL (or TFY_GATEWAY_URL) env var.",
     )
     parser.addoption(
         "--resilience-lark-url",
         action="store",
         default=None,
-        help="Base URL for the Lark MCP server. Falls back to LARK_MCP_URL env var.",
+        help="Base URL for the MCP server. "
+        "Falls back to RESILIENCE_LARK_URL (or LARK_MCP_URL) env var.",
     )
     parser.addoption(
         "--resilience-record",
@@ -87,20 +108,21 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 
 @pytest.fixture
 def ai_gateway(request: pytest.FixtureRequest) -> AIGatewayClient:
-    """Return an AIGatewayClient pointed at the configured TrueFoundry gateway.
+    """Return an AIGatewayClient pointed at the configured AI gateway.
 
     The gateway URL comes from ``--resilience-gateway-url`` or the
-    ``TFY_GATEWAY_URL`` env var. If neither is set the fixture skips the
-    test rather than silently hitting OpenAI directly.
+    ``RESILIENCE_GATEWAY_URL`` env var (``TFY_GATEWAY_URL`` is kept as an
+    alias). If none is set the fixture skips the test rather than silently
+    hitting a real provider.
     """
-    url = request.config.getoption("--resilience-gateway-url")
-    if url is None:
-        import os
-
-        url = os.environ.get("TFY_GATEWAY_URL")
+    url = _resolve_url(
+        request.config,
+        "--resilience-gateway-url",
+        ("RESILIENCE_GATEWAY_URL", "TFY_GATEWAY_URL"),
+    )
     if not url:
         pytest.skip(
-            "no AI gateway URL configured (set --resilience-gateway-url or TFY_GATEWAY_URL)"
+            "no AI gateway URL configured (set --resilience-gateway-url or RESILIENCE_GATEWAY_URL)"
         )
     return AIGatewayClient(base_url=url)
 
@@ -113,18 +135,24 @@ def chaos(request: pytest.FixtureRequest) -> ChaosController:
     scenarios for the duration of the test, and cleans up on teardown.
     Target URLs come from the same CLI options/env vars as ``ai_gateway``.
     """
-    import os
-
     marker = request.node.get_closest_marker("resilience")
     scenarios = list(marker.kwargs.get("scenarios", [])) if marker else []
     turns = marker.kwargs.get("turns") if marker else None
-    gateway_url = request.config.getoption("--resilience-gateway-url") or os.environ.get(
-        "TFY_GATEWAY_URL"
+    compose = marker.kwargs.get("compose") if marker else None
+    gateway_url = _resolve_url(
+        request.config,
+        "--resilience-gateway-url",
+        ("RESILIENCE_GATEWAY_URL", "TFY_GATEWAY_URL"),
     )
-    lark_url = request.config.getoption("--resilience-lark-url") or os.environ.get("LARK_MCP_URL")
+    lark_url = _resolve_url(
+        request.config,
+        "--resilience-lark-url",
+        ("RESILIENCE_LARK_URL", "LARK_MCP_URL"),
+    )
     controller = ChaosController(
         scenarios=scenarios,
         turns=turns,
+        compose=compose,
         target_gateway_url=gateway_url,
         target_lark_url=lark_url,
     )

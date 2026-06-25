@@ -1,10 +1,11 @@
-"""Thin client around TrueFoundry AI Gateway.
+"""Thin client around an OpenAI-compatible AI gateway.
 
-The gateway is an OpenAI-compatible proxy that handles fallbacks, retries,
-and multi-model routing on its side. We just send chat completions through
-it and let the gateway config decide what happens when upstream models error.
-
-Docs: https://www.truefoundry.com/docs/ai-gateway/intro-to-llm-gateway
+Works with any gateway that exposes the OpenAI ``/chat/completions`` shape
+(TrueFoundry, LiteLLM, a self-hosted proxy, or the provider directly). The
+gateway handles fallbacks, retries, and multi-model routing on its side; we
+just send chat completions through it and let it decide what happens when an
+upstream model errors. The thin httpx client here keeps timeout and error
+injection easy for resilience tests.
 """
 
 from __future__ import annotations
@@ -25,11 +26,11 @@ class ChatReply:
 
 
 class AIGatewayClient:
-    """Send chat completions through a TrueFoundry-style AI Gateway.
+    """Send chat completions through an OpenAI-compatible AI gateway.
 
-    The gateway is OpenAI-compatible, so callers can keep the OpenAI SDK
-    interface in their own code and swap the base URL. We keep a thin
-    httpx client here to make timeout and error injection easy for tests.
+    Callers keep the OpenAI request shape in their own code and swap the base
+    URL. The thin httpx client here makes timeout and error injection easy for
+    resilience tests.
     """
 
     def __init__(
@@ -43,7 +44,7 @@ class AIGatewayClient:
         headers: dict[str, str] = {
             "Content-Type": "application/json",
             "Accept": "application/json",
-            "User-Agent": "pytest-resilience-agent/0.1.0 (httpx)",
+            "User-Agent": "pytest-resilience-agent/1.0.0 (httpx)",
         }
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"

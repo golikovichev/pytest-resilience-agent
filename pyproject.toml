@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pytest-resilience-agent"
-version = "0.2.0"
-description = "pytest plugin that auto-generates resilience tests for LLM apps using Lark MCP and TrueFoundry AI Gateway"
+version = "1.0.0"
+description = "pytest plugin that runs your LLM app under controlled chaos (timeouts, brownouts, rate limits, MCP errors, composed failures) and asserts it still meets its contract"
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
