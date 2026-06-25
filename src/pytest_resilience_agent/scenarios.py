@@ -575,9 +575,7 @@ def _step_auth_expiry(request: httpx.Request) -> httpx.Response:
 
 
 def _step_context_overflow(request: httpx.Request) -> httpx.Response:
-    return httpx.Response(
-        400, json={"error": {"code": "context_length_exceeded"}}
-    )
+    return httpx.Response(400, json={"error": {"code": "context_length_exceeded"}})
 
 
 def _step_llm_timeout(request: httpx.Request) -> httpx.Response:
