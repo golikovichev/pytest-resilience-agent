@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- `turns=` now rejects two same-layer scenarios in a single turn instead of
+  silently applying only the last one. Each turn installs its scenarios on the
+  same routes at once, so a turn like `[["llm_5xx", "rate_limit"]]` had both
+  gateway routes shadow each other (respx is last-route-wins): only the last
+  scenario actually fired while the event log still reported both as active.
+  `scenarios=` already guarded against this; the check now runs per turn too.
+  A gateway + MCP pair in one turn hits different URLs and stays allowed.
+
 ## [1.0.0] - 2026-06-25
 
 ### Added

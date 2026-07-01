@@ -77,6 +77,22 @@ def test_unknown_scenario_in_a_turn_raises_usage_error_up_front() -> None:
         ChaosController(turns=[["llm_5xx"], ["does_not_exist"]])
 
 
+def test_two_gateway_scenarios_in_one_turn_is_rejected() -> None:
+    """Two same-layer scenarios inside a single turn would shadow each other
+    (respx last-route-wins), the same failure scenarios= rejects. It must be
+    caught at construction, not silently apply only the last one."""
+    with pytest.raises(pytest.UsageError):
+        ChaosController(turns=[["rate_limit", "llm_5xx"]])
+
+
+def test_gateway_plus_mcp_in_one_turn_is_allowed() -> None:
+    """One gateway + one MCP scenario in a turn hit different URLs, so they do
+    not shadow and are allowed (mirrors the scenarios= rule)."""
+    controller = ChaosController(turns=[["rate_limit", "mcp_error"]])
+    controller.enter()
+    controller.exit()  # no usage error raised
+
+
 def test_next_turn_without_turns_mode_raises_usage_error() -> None:
     """Calling next_turn() on a single-window (scenarios=) controller is an error."""
     controller = ChaosController(scenarios=["llm_5xx"])
