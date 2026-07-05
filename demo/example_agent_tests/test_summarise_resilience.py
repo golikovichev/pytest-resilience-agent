@@ -38,13 +38,13 @@ def test_agent_handles_rate_limit_gracefully(chaos):
     assert reply.content, "agent must respond after rate limit clears"
 
 
-@pytest.mark.resilience(scenarios=["rate_limit", "partial_outage"])
+@pytest.mark.resilience(compose=["rate_limit", "partial_outage"])
 def test_agent_survives_stacked_faults(chaos):
-    """rate_limit on first call + partial outage scenario both active.
+    """rate_limit then partial_outage, sequenced on the gateway via compose=.
 
-    With our default fixture the rate_limit scenario binds first, so the
-    first call returns 429 and the rate_limit second-call rule serves a
-    200. Either way, the agent retries and finishes successfully.
+    Both scenarios target the same gateway route, so they cannot be active at
+    once (last route wins); compose= sequences them instead. The agent meets
+    the throttle, retries, and still finishes once the sequence resolves.
     """
     reply = summarise_email("Where is my order?", timeout=2.0)
     assert reply.content
