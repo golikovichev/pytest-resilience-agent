@@ -28,7 +28,7 @@
       "target_layer": "lark_mcp",
       "failure_mode": "tool_error",
       "fixture_action": "Make the next Lark MCP tool call raise a JSON-RPC error response.",
-      "expected_test_assertion": "The agent reports the failed tool в its final reply rather than acting as if the tool succeeded."
+      "expected_test_assertion": "The agent reports the failed tool in its final reply rather than acting as if the tool succeeded."
     },
     {
       "name": "partial_outage",

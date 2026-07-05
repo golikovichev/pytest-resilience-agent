@@ -192,7 +192,6 @@ python -X utf8 scripts/smoke_live_integrations.py
 **Not covered (yet)**
 
 - Semantic regressions (use `phoenix2pytest` or DeepEval for that).
-- Multi-turn conversation chaos (planned for v0.2).
 - Distributed-system chaos (network partitions across services).
 
 ## Roadmap
@@ -223,7 +222,7 @@ python -m pip install -e ".[demo,dev]"
 
 Three entry points, ordered by how much of the story they show.
 
-**1. Run the test suite (17 tests, all chaos scenarios verified)**
+**1. Run the test suite (all chaos scenarios verified)**
 
 ```bash
 python -X utf8 -m pytest -v -m "not slow"
