@@ -76,6 +76,12 @@ class ChaosController:
                     f"unknown chaos scenario(s) in turns=: {sorted(set(unknown))}. "
                     f"Registered: {sorted(known)}"
                 )
+            # Each turn installs its scenarios on the same routes at once, so two
+            # same-layer scenarios in one turn shadow each other exactly as they
+            # would in scenarios=. Reject per turn instead of applying only the
+            # last one silently.
+            for turn in turns:
+                self._reject_same_layer_shadowing(turn)
         if compose is not None:
             if not compose:
                 raise pytest.UsageError("compose= must list at least one scenario")
@@ -87,19 +93,7 @@ class ChaosController:
                     f"Composable (gateway failures): {sorted(composable)}"
                 )
         if scenarios and len(scenarios) > 1:
-            # Every gateway-layer scenario installs a route on the same gateway
-            # URL, and respx is last-route-wins, so two of them would silently
-            # shadow each other (same for the MCP layer). Catch it loudly and
-            # point at compose=, which sequences gateway failures on one route.
-            gateway_layer = [n for n in scenarios if n not in _LARK_LAYER_SCENARIOS]
-            mcp_layer = [n for n in scenarios if n in _LARK_LAYER_SCENARIOS]
-            for layer, group in (("gateway", gateway_layer), ("MCP", mcp_layer)):
-                if len(group) > 1:
-                    raise pytest.UsageError(
-                        f"scenarios={sorted(group)} all hit the {layer} endpoint and would "
-                        f"silently shadow each other (last route wins). Use compose= to "
-                        f"sequence gateway failures, or split them across separate tests."
-                    )
+            self._reject_same_layer_shadowing(scenarios)
         self.scenario_names = list(scenarios) if scenarios else []
         self.turns = turns
         self.compose = list(compose) if compose else None
@@ -109,6 +103,26 @@ class ChaosController:
         self._mock = respx.mock(assert_all_called=False, assert_all_mocked=False)
         self._scenarios: list[Scenario] = []
         self._turn_index = 0
+
+    @staticmethod
+    def _reject_same_layer_shadowing(names: list[str]) -> None:
+        """Raise UsageError if ``names`` has two scenarios on the same endpoint.
+
+        Every gateway-layer scenario installs a route on the same gateway URL,
+        and respx is last-route-wins, so two of them would silently shadow each
+        other (same for the MCP layer). Catch it loudly and point at compose=,
+        which sequences gateway failures on one route. Different layers
+        (one gateway + one MCP) hit different URLs, so they are allowed.
+        """
+        gateway_layer = [n for n in names if n not in _LARK_LAYER_SCENARIOS]
+        mcp_layer = [n for n in names if n in _LARK_LAYER_SCENARIOS]
+        for layer, group in (("gateway", gateway_layer), ("MCP", mcp_layer)):
+            if len(group) > 1:
+                raise pytest.UsageError(
+                    f"scenarios={sorted(group)} all hit the {layer} endpoint and would "
+                    f"silently shadow each other (last route wins). Use compose= to "
+                    f"sequence gateway failures, or split them across separate tests."
+                )
 
     @property
     def current_turn(self) -> int:
