@@ -37,7 +37,12 @@ def _console() -> Console:
 
 
 def _lark_url(args: argparse.Namespace) -> str:
-    return args.lark_url or os.environ.get("LARK_MCP_URL") or _DEFAULT_LARK_URL
+    return (
+        args.lark_url
+        or os.environ.get("RESILIENCE_LARK_URL")
+        or os.environ.get("LARK_MCP_URL")
+        or _DEFAULT_LARK_URL
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -159,7 +164,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--lark-url",
         default=None,
-        help="Lark MCP base URL (env LARK_MCP_URL, default http://localhost:8801)",
+        help=(
+            "Lark MCP base URL (env RESILIENCE_LARK_URL, or legacy LARK_MCP_URL; "
+            "default http://localhost:8801)"
+        ),
     )
     sub = parser.add_subparsers(dest="command", required=True)
 

@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   scenario actually fired while the event log still reported both as active.
   `scenarios=` already guarded against this; the check now runs per turn too.
   A gateway + MCP pair in one turn hits different URLs and stays allowed.
+- CLI subcommands now read the canonical `RESILIENCE_LARK_URL` environment
+  variable when resolving the Lark MCP base URL, with `LARK_MCP_URL` kept as a
+  legacy alias. Previously the CLI read only `LARK_MCP_URL`, so a
+  `RESILIENCE_LARK_URL` export documented in the README and CHANGELOG was
+  silently ignored and every CLI call fell back to the default localhost URL.
+  This matches the precedence the plugin layer already used.
 
 ## [1.0.0] - 2026-06-25
 
