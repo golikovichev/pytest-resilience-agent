@@ -663,19 +663,19 @@ class CompositeScenario(Scenario):
 
 
 _REGISTRY: dict[str, Callable[[respx.MockRouter, str], Scenario]] = {
-    LLMTimeout.name: lambda mock, url: LLMTimeout(mock, url),
-    LLM5xx.name: lambda mock, url: LLM5xx(mock, url),
-    RateLimit.name: lambda mock, url: RateLimit(mock, url),
-    MCPError.name: lambda mock, url: MCPError(mock, url),
-    PartialOutage.name: lambda mock, url: PartialOutage(mock, url),
-    CostExceeded.name: lambda mock, url: CostExceeded(mock, url),
-    WrongModelReturned.name: lambda mock, url: WrongModelReturned(mock, url),
-    StreamStall.name: lambda mock, url: StreamStall(mock, url),
-    NetworkBlip.name: lambda mock, url: NetworkBlip(mock, url),
-    MalformedJSON.name: lambda mock, url: MalformedJSON(mock, url),
-    AuthExpiry.name: lambda mock, url: AuthExpiry(mock, url),
-    ContextOverflow.name: lambda mock, url: ContextOverflow(mock, url),
-    MCPTimeout.name: lambda mock, url: MCPTimeout(mock, url),
+    LLMTimeout.name: LLMTimeout,
+    LLM5xx.name: LLM5xx,
+    RateLimit.name: RateLimit,
+    MCPError.name: MCPError,
+    PartialOutage.name: PartialOutage,
+    CostExceeded.name: CostExceeded,
+    WrongModelReturned.name: WrongModelReturned,
+    StreamStall.name: StreamStall,
+    NetworkBlip.name: NetworkBlip,
+    MalformedJSON.name: MalformedJSON,
+    AuthExpiry.name: AuthExpiry,
+    ContextOverflow.name: ContextOverflow,
+    MCPTimeout.name: MCPTimeout,
 }
 
 
