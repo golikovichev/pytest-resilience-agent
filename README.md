@@ -153,6 +153,53 @@ def test_agent_survives_cascading_failure(ai_gateway, chaos):
 `compose=` accepts the gateway-layer failures (`composable_scenarios()` lists
 them) and is mutually exclusive with `scenarios=` and `turns=`.
 
+### Property-based timing fuzzing
+
+The built-in scenarios pin their timing to one hand-picked value: `rate_limit`
+advertises a fixed `Retry-After`, the transient failures recover after a fixed
+number of calls. Real gateways vary. `timing_profiles()` is a Hypothesis
+strategy that draws bounded timing profiles, and `FuzzedTransientFailure`
+installs a route that fails the first `fail_first_n` calls (each a 429 carrying
+the drawn `Retry-After`) then recovers. One property test then asserts the same
+invariant across the whole timing space instead of one example.
+
+`FuzzedTransientFailure` is used directly with `@given`, not through the
+`resilience` marker (the marker builds scenarios without a timing profile), so
+there is no `"fuzzed_transient_failure"` scenario name to pass to `scenarios=`.
+Set `deadline=None`: each example starts and stops a respx transport, which
+costs more than Hypothesis's default 200 ms per-example deadline.
+
+```python
+import httpx
+import respx
+from hypothesis import given, settings
+from pytest_resilience_agent import FuzzedTransientFailure, timing_profiles
+
+URL = "https://gateway.local/v1/chat/completions"
+
+@settings(deadline=None)
+@given(profile=timing_profiles())
+def test_client_recovers_for_any_timing(profile):
+    mock = respx.mock(assert_all_called=False, assert_all_mocked=False)
+    mock.start()
+    FuzzedTransientFailure(mock, URL, profile).apply()
+    try:
+        with httpx.Client() as client:
+            for _ in range(profile.fail_first_n):
+                assert client.post(URL, json={}).status_code == 429
+            # Recovery holds for every call past the failure window.
+            assert client.post(URL, json={}).status_code == 200
+            assert client.post(URL, json={}).status_code == 200
+    finally:
+        mock.stop()
+```
+
+Nothing here sleeps: `stall_seconds` is recorded in the scenario metadata to
+document the simulated stall, never awaited, so the property tests stay fast.
+Install the strategy dependency with the `fuzz` extra
+(`pip install pytest-resilience-agent[fuzz]`); `TimingProfile` and
+`FuzzedTransientFailure` are pure and need no extra.
+
 ## Live sponsor integration
 
 Beyond the mock servers (which let judges clone and run the full loop without
@@ -199,7 +246,8 @@ python -X utf8 scripts/smoke_live_integrations.py
 - v0.1 (May 2026): nine built-in chaos scenarios, mock-server fallbacks, reference tests, end-to-end demo.
 - v0.2 (June 2026): multi-turn conversation chaos (failure injected and cleared per turn), OpenTelemetry spans for every chaos event and turn boundary.
 - v1.0 (June 2026): thirteen built-in scenarios (added auth expiry, context overflow, MCP timeout), composed cascading failures (`compose=`), gateway-agnostic configuration (`RESILIENCE_GATEWAY_URL`), stable public API.
-- Next: semantic assertion hooks, property-based fuzzing of timing.
+- Unreleased: property-based timing fuzzing (`timing_profiles()` + `FuzzedTransientFailure`) sweeps the simulated retry/failure-count space with Hypothesis.
+- Next: semantic assertion hooks.
 
 ## Why this is different
 

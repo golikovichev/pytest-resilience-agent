@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Property-based timing fuzzing. `timing_profiles()` is a Hypothesis strategy
+  that draws bounded `TimingProfile` values (failure count, advertised
+  `Retry-After`, documented stall duration), and `FuzzedTransientFailure`
+  installs a route that fails the first `fail_first_n` calls (each a 429 with
+  the drawn `Retry-After`) then recovers. A single property test asserts the
+  recovery invariant across the whole timing space instead of one hand-picked
+  value. Consistent with the rest of the plugin nothing sleeps: `stall_seconds`
+  is metadata only. `TimingProfile` and `FuzzedTransientFailure` are pure; the
+  strategy imports Hypothesis lazily and is installed via the `fuzz` extra.
+  All three are re-exported from `pytest_resilience_agent`.
+
 ### Fixed
 - `turns=` now rejects two same-layer scenarios in a single turn instead of
   silently applying only the last one. Each turn installs its scenarios on the
