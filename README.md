@@ -247,7 +247,16 @@ python -X utf8 scripts/smoke_live_integrations.py
 - v0.2 (June 2026): multi-turn conversation chaos (failure injected and cleared per turn), OpenTelemetry spans for every chaos event and turn boundary.
 - v1.0 (June 2026): thirteen built-in scenarios (added auth expiry, context overflow, MCP timeout), composed cascading failures (`compose=`), gateway-agnostic configuration (`RESILIENCE_GATEWAY_URL`), stable public API.
 - Unreleased: property-based timing fuzzing (`timing_profiles()` + `FuzzedTransientFailure`) sweeps the simulated retry/failure-count space with Hypothesis.
-- Next: semantic assertion hooks.
+
+### Where it goes next
+
+Direction, not a schedule. Priorities move with what real users hit first.
+
+- Contract assertions: declare what the agent owes you when a dependency breaks (it responds, it names the fallback it took, it surfaces a clear error, it stays under a latency bound), and let the plugin check that contract across every scenario instead of hand-writing the same asserts in each test.
+- Bridge to pytest-mockllm: that plugin shapes the model's replies, this one runs the failure weather around the call. Different halves of one problem, so joining them should be a fixture, not a fork.
+- Preset scenario packs: common shapes ready to drop in (a tool call that never answers, an upstream that starts returning 429 mid-run, jitter stacked on a rate limit), each with a steady-state definition so the test asserts recovery, not luck.
+- Phoenix export: emit each chaos run as an experiment over OpenInference, so teams already on Phoenix read resilience runs next to their eval traces.
+- Semantic assertion hooks: a seam to plug an eval call (phoenix2pytest, DeepEval) in for when "did it respond" is not the whole question and you need "did it respond correctly".
 
 ## Why this is different
 
