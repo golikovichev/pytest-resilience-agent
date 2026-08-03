@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Generator
 from pathlib import Path
 
 import pytest
@@ -30,6 +31,10 @@ from pytest_resilience_agent.gateway import AIGatewayClient
 # Module-level timeline collector. Populated by the chaos fixture finalizer
 # and dumped to disk by pytest_sessionfinish when --resilience-record is set.
 _TIMELINE: list[dict] = []
+
+# Per-test stash of the gateway clients a test built, so a declared contract
+# can inspect their recorded calls after the test body runs.
+_GATEWAYS_KEY: pytest.StashKey[list[AIGatewayClient]] = pytest.StashKey()
 
 
 def _resolve_url(config: pytest.Config, option: str, env_vars: tuple[str, ...]) -> str | None:
@@ -69,11 +74,14 @@ def pytest_configure(config: pytest.Config) -> None:
     """
     config.addinivalue_line(
         "markers",
-        "resilience(scenarios, turns, compose): inject chaos before running the test. "
-        "scenarios=[...] applies one set for the whole test; turns=[[...], [...]] "
+        "resilience(scenarios, turns, compose, contract): inject chaos before running "
+        "the test. scenarios=[...] applies one set for the whole test; turns=[[...], [...]] "
         "binds a set per conversation turn, advanced with chaos.next_turn(); "
         "compose=[...] sequences gateway failures in one window (call 1 hits the "
-        "first, call 2 the second, then recovery). The three are mutually exclusive.",
+        "first, call 2 the second, then recovery). scenarios/turns/compose are mutually "
+        "exclusive. contract=Contract(...) declares what the agent owes the caller "
+        "(responds, names_fallback, surfaces_clear_error, latency_under) and is checked "
+        "automatically against the gateway's recorded calls after the test body runs.",
     )
 
 
@@ -124,7 +132,15 @@ def ai_gateway(request: pytest.FixtureRequest) -> AIGatewayClient:
         pytest.skip(
             "no AI gateway URL configured (set --resilience-gateway-url or RESILIENCE_GATEWAY_URL)"
         )
-    return AIGatewayClient(base_url=url)
+    client = AIGatewayClient(base_url=url)
+    # Register the client so a declared contract can read its recorded calls at
+    # the end of the test. Multiple ai_gateway uses in one test accumulate here.
+    gateways = request.node.stash.get(_GATEWAYS_KEY, None)
+    if gateways is None:
+        gateways = []
+        request.node.stash[_GATEWAYS_KEY] = gateways
+    gateways.append(client)
+    return client
 
 
 @pytest.fixture
@@ -174,6 +190,34 @@ def chaos(request: pytest.FixtureRequest) -> ChaosController:
             ],
         }
     )
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_call(item: pytest.Item) -> Generator[None, object, object]:
+    """Check a declared resilience contract after the test body runs.
+
+    The contract is read from the ``resilience`` marker's ``contract=`` kwarg and
+    evaluated against every call the test's gateway clients recorded. A violation
+    fails the test in the call phase (a real failure, not a teardown error). If
+    the body itself raised, ``yield`` re-raises it here and the original failure
+    propagates untouched rather than being masked by a passing contract.
+    """
+    result = yield  # re-raises if the test body failed
+    marker = item.get_closest_marker("resilience")
+    if marker is None:
+        return result
+    contract = marker.kwargs.get("contract")
+    if contract is None:
+        return result
+    gateways = item.stash.get(_GATEWAYS_KEY, [])
+    calls = [call for gateway in gateways for call in gateway.calls]
+    violations = contract.check(calls)
+    if violations:
+        pytest.fail(
+            "resilience contract violated:\n  - " + "\n  - ".join(violations),
+            pytrace=False,
+        )
+    return result
 
 
 def pytest_runtest_logreport(report: pytest.TestReport) -> None:

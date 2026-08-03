@@ -200,6 +200,42 @@ Install the strategy dependency with the `fuzz` extra
 (`pip install pytest-resilience-agent[fuzz]`); `TimingProfile` and
 `FuzzedTransientFailure` are pure and need no extra.
 
+### Contract assertions
+
+Across a scenario set the checks repeat: the reply is non-empty, a fallback
+model actually served, a failure came back as a clear error, the call stayed
+under a latency bound. `contract=Contract(...)` states that once on the marker
+and the plugin checks it against the calls the gateway recorded, so the test
+body carries no contract asserts.
+
+```python
+from pytest_resilience_agent import Contract
+
+@pytest.mark.resilience(
+    scenarios=["llm_timeout"],
+    contract=Contract(
+        responds=True,           # some call returned non-empty content
+        names_fallback=True,     # a reply came from a model other than the one asked for
+        surfaces_clear_error=True,  # no empty reply slipped through without a raised error
+        latency_under=2.0,       # every call returned within 2.0s
+    ),
+)
+def test_agent_keeps_its_contract(ai_gateway, chaos):
+    ai_gateway.chat([{"role": "user", "content": "still there?"}])
+    # no manual asserts: a violated clause fails the test after the body runs
+```
+
+Every clause is opt-in; an unset one is not checked. The contract reads the
+`ai_gateway` ledger, so a test that declares a contract but never drives the
+gateway fails with "the gateway was never called". A failure inside the test
+body is reported as-is and never masked by a passing contract.
+
+`latency_under` measures wall-clock seconds around each `chat()` call. Under the
+respx mock a call with no timing scenario active returns in near-zero time and
+the bound passes trivially; the clause earns its keep when a slow or timing
+scenario is in play. `names_fallback` compares `reply.model` against the model
+the caller requested, so it holds when the gateway routed to a fallback.
+
 ## Live sponsor integration
 
 Beyond the mock servers (which let judges clone and run the full loop without
@@ -246,13 +282,12 @@ python -X utf8 scripts/smoke_live_integrations.py
 - v0.1 (May 2026): nine built-in chaos scenarios, mock-server fallbacks, reference tests, end-to-end demo.
 - v0.2 (June 2026): multi-turn conversation chaos (failure injected and cleared per turn), OpenTelemetry spans for every chaos event and turn boundary.
 - v1.0 (June 2026): thirteen built-in scenarios (added auth expiry, context overflow, MCP timeout), composed cascading failures (`compose=`), gateway-agnostic configuration (`RESILIENCE_GATEWAY_URL`), stable public API.
-- Unreleased: property-based timing fuzzing (`timing_profiles()` + `FuzzedTransientFailure`) sweeps the simulated retry/failure-count space with Hypothesis.
+- Unreleased: property-based timing fuzzing (`timing_profiles()` + `FuzzedTransientFailure`) sweeps the simulated retry/failure-count space with Hypothesis; contract assertions (`Contract(...)` on the marker) check what the agent owes the caller across a scenario set without per-test asserts.
 
 ### Where it goes next
 
 Direction, not a schedule. Priorities move with what real users hit first.
 
-- Contract assertions: declare what the agent owes you when a dependency breaks (it responds, it names the fallback it took, it surfaces a clear error, it stays under a latency bound), and let the plugin check that contract across every scenario instead of hand-writing the same asserts in each test.
 - Bridge to pytest-mockllm: that plugin shapes the model's replies, this one runs the failure weather around the call. Different halves of one problem, so joining them should be a fixture, not a fork.
 - Preset scenario packs: common shapes ready to drop in (a tool call that never answers, an upstream that starts returning 429 mid-run, jitter stacked on a rate limit), each with a steady-state definition so the test asserts recovery, not luck.
 - Phoenix export: emit each chaos run as an experiment over OpenInference, so teams already on Phoenix read resilience runs next to their eval traces.

@@ -10,10 +10,14 @@ injection easy for resilience tests.
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import httpx
+
+if TYPE_CHECKING:
+    from pytest_resilience_agent.contract import CallRecord
 
 
 @dataclass
@@ -49,6 +53,10 @@ class AIGatewayClient:
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"
         self._client = httpx.Client(headers=headers, timeout=timeout)
+        # Ledger of every chat() call, inspected by a resilience Contract at
+        # teardown. Each entry records the reply (or None), elapsed seconds, and
+        # the raised error (or None).
+        self.calls: list[CallRecord] = []
 
     def chat(
         self,
@@ -61,15 +69,41 @@ class AIGatewayClient:
         The gateway's own config decides fallback chain and retries.
         If the gateway itself is unreachable, raises ``httpx.HTTPError``.
         """
+        from pytest_resilience_agent.contract import CallRecord
+
         payload = {"model": model, "messages": messages, **kwargs}
-        response = self._client.post(f"{self.base_url}/chat/completions", json=payload)
-        response.raise_for_status()
-        data = response.json()
-        choices = data.get("choices") or []
-        content = ""
-        if choices:
-            content = choices[0].get("message", {}).get("content", "") or ""
-        return ChatReply(content=content, model=data.get("model", model), raw=data)
+        started = time.perf_counter()
+        # Record the whole call, including body parsing: a 200 with a non-JSON
+        # body (a proxy error page) is still a call the ledger must show, so any
+        # failure is recorded with error set before it re-raises.
+        try:
+            response = self._client.post(f"{self.base_url}/chat/completions", json=payload)
+            response.raise_for_status()
+            data = response.json()
+            choices = data.get("choices") or []
+            content = ""
+            if choices:
+                content = choices[0].get("message", {}).get("content", "") or ""
+            reply = ChatReply(content=content, model=data.get("model", model), raw=data)
+        except Exception as error:  # noqa: BLE001 - record any failure, then re-raise
+            self.calls.append(
+                CallRecord(
+                    model_requested=model,
+                    reply=None,
+                    elapsed=time.perf_counter() - started,
+                    error=error,
+                )
+            )
+            raise
+        self.calls.append(
+            CallRecord(
+                model_requested=model,
+                reply=reply,
+                elapsed=time.perf_counter() - started,
+                error=None,
+            )
+        )
+        return reply
 
     def close(self) -> None:
         """Close the underlying httpx client."""

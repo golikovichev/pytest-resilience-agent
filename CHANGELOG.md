@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Contract assertions. `Contract(...)` declares what the agent owes the caller
+  when a dependency breaks: `responds` (some call returned non-empty content),
+  `names_fallback` (a reply came from a model other than the one requested),
+  `surfaces_clear_error` (no empty reply passed without a raised error), and
+  `latency_under` (every call returned within the bound). Pass it on the marker
+  as `@pytest.mark.resilience(scenarios=[...], contract=Contract(...))`; the
+  plugin checks it against the calls the gateway recorded after the test body
+  runs, so a scenario set is guarded once instead of repeating the same asserts
+  per test. Each clause is opt-in, a violation fails the test in the call phase
+  (a body failure is never masked), and a declared contract with no gateway call
+  fails loudly. The gateway client now keeps a `calls` ledger of `CallRecord`
+  entries (reply, elapsed seconds, error). `Contract` and `CallRecord` are
+  re-exported from `pytest_resilience_agent`.
 - Property-based timing fuzzing. `timing_profiles()` is a Hypothesis strategy
   that draws bounded `TimingProfile` values (failure count, advertised
   `Retry-After`, documented stall duration), and `FuzzedTransientFailure`

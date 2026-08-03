@@ -12,6 +12,7 @@ from pytest_resilience_agent.chaos import (
     composable_scenarios,
     registered_scenarios,
 )
+from pytest_resilience_agent.contract import CallRecord, Contract
 from pytest_resilience_agent.gateway import AIGatewayClient, ChatReply
 from pytest_resilience_agent.scenarios import Scenario, ScenarioResult
 from pytest_resilience_agent.timing import (
@@ -24,9 +25,11 @@ __version__ = "1.0.0"
 
 __all__ = [
     "AIGatewayClient",
+    "CallRecord",
     "ChaosController",
     "ChaosEvent",
     "ChatReply",
+    "Contract",
     "FuzzedTransientFailure",
     "Scenario",
     "ScenarioResult",
